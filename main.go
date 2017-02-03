@@ -14,16 +14,6 @@
 
 package main
 
-import "github.com/davidharrigan/arale/bot"
-
-func respond(m bot.Message)(bot.Message) {
-    m.Text = "sup"
-    return m
-}
-
 func main() {
-    b := bot.Bot{Token:""}
-    command := bot.Command{Regex:"soup", Action: respond}
-    b.RegisterCommand(command)
-    b.Run()
+
 }

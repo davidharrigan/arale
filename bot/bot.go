@@ -20,6 +20,8 @@ import (
     "io/ioutil"
     "log"
     "net/http"
+    "regexp"
+    "strings"
     "sync/atomic"
 
     "golang.org/x/net/websocket"
@@ -56,7 +58,7 @@ type Message struct {
 }
 
 type Command struct {
-    Regex string
+    Regex *regexp.Regexp
     Mention bool
     Action func(Message) Message
 }
@@ -124,8 +126,12 @@ func (b *Bot) Run() {
     for {
         message := <-c
         for _, cmd := range b.Commands {
+            // This command explicitly expects mention, but the actual message didn't contain any
+            if cmd.Mention && !strings.Contains(message.Text, "<@"+b.BotId+">") {
+                continue
+            }
             // Match!
-            if cmd.Regex == message.Text {
+            if cmd.Regex.MatchString(message.Text) {
                 log.Println("Processing command:", message.Text)
                 response := cmd.Action(message)
                 log.Println("Responding with:", response)
