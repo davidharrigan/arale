@@ -15,11 +15,7 @@
 package bot
 
 import (
-    "encoding/json"
-    "fmt"
-    "io/ioutil"
     "log"
-    "net/http"
     "regexp"
     "strings"
     "sync/atomic"
@@ -27,27 +23,13 @@ import (
     "golang.org/x/net/websocket"
 )
 
-const rtmStart = "https://slack.com/api/rtm.start?token=%s"
-const slackAPI = "https://api.slack.com/"
 var counter uint64
-
 
 type Bot struct {
     Token string
     BotId string
-    Commands []Command
+    Commands []*Command
     socket *websocket.Conn
-}
-
-type rtmStartResponse struct {
-    Ok bool
-    Error string
-    Url string
-    Self responseSelf
-}
-
-type responseSelf struct {
-    Id string
 }
 
 type Message struct {
@@ -61,51 +43,7 @@ type Command struct {
     Regex *regexp.Regexp
     Mention bool
     Action func(Message) Message
-}
-
-/**
- *  Starts a connection with Slack
- */
-func connectToSlack(token string) (ws *websocket.Conn, id string, err error) {
-    // Start a RTM connection
-    url := fmt.Sprintf(rtmStart, token)
-    response, err := http.Get(url)
-    if err != nil {
-        return
-    }
-    if response.StatusCode != 200 {
-        err = fmt.Errorf("API request failed with code %d", response.StatusCode)
-        return
-    }
-
-    // Grab the response body
-    body, err := ioutil.ReadAll(response.Body)
-    response.Body.Close()
-    if err != nil {
-        return
-    }
-
-    // JSON-fy
-    var responseObj rtmStartResponse
-    err = json.Unmarshal(body, &responseObj)
-    if err != nil {
-        return
-    }
-
-    if !responseObj.Ok {
-        err = fmt.Errorf("Slack error: %s", responseObj.Error)
-        return
-    }
-
-    websocketUrl := responseObj.Url
-    id = responseObj.Self.Id
-
-    ws, err = websocket.Dial(websocketUrl, "", slackAPI)
-    if err != nil {
-        return
-    }
-
-    return
+    Target string
 }
 
 /**
@@ -179,6 +117,12 @@ func (b *Bot) SendMessage(message Message) (err error) {
 /**
  * Register a new command
  */
-func (b *Bot) RegisterCommand(command Command) {
+func (b *Bot) RegisterCommand(command *Command) (err error) {
+    regex, err := regexp.Compile(command.Target)
+    if err != nil {
+        return
+    }
+    command.Regex = regex
     b.Commands = append(b.Commands, command)
+    return
 }
