@@ -19,6 +19,7 @@ import (
     "regexp"
     "strings"
     "sync/atomic"
+    "time"
 
     "golang.org/x/net/websocket"
 )
@@ -35,7 +36,7 @@ type Bot struct {
     BotId string
     Commands []*Command
     state int
-    socket *websocket.Conn
+    sockets map[string] *websocket.Conn
 }
 
 type Message struct {
@@ -56,49 +57,54 @@ type Command struct {
  * Run the bot
  */
 func (b *Bot) Run() {
-    ws, id, err := connectToSlack(b.Token)
+    wsSlack, id, err := connectToSlack(b.Token)
     if err != nil {
         log.Fatal(err)
     }
-    b.socket = ws
     b.BotId = id
+    b.sockets["slack"] = wsSlack
 
-    c := make(chan Message)
-    go b.Listen(c)
+    slackChannel := make(chan Message)
+    stateChannel  := make(chan int)
+    go b.SlackListener(slackChannel)
+    go b.StateListener(stateChannel)
 
     // Main loop
     for {
-        message := <-c
-        log.Println("sup")
-        for _, cmd := range b.Commands {
-            // This command explicitly expects mention, but the actual message didn't contain any
-            if cmd.Mention && !strings.Contains(message.Text, "<@"+b.BotId+">") {
-                continue
-            }
-            // Match!
-            if cmd.Regex.MatchString(message.Text) {
-                log.Println("Processing command:", message.Text)
-                response := cmd.Action(message)
-                log.Println("Responding with:", response)
-                err = b.SendMessage(response)
-                if err != nil {
-                    log.Fatal(err)
-                }
+        select {
+            case message := <-slackChannel:
+                b.processSlackMessage(message)
+            case newState := <-stateChannel:
+                b.SetState(newState)
+        }
+    }
+}
+
+func (b *Bot) processSlackMessage(message Message) {
+    log.Println("Processing command:", message.Text)
+    for _, cmd := range b.Commands {
+        // This command explicitly expects mention, but the actual message didn't contain any
+        if cmd.Mention && !strings.Contains(message.Text, "<@"+b.BotId+">") {
+            continue
+        }
+        // Match!
+        if cmd.Regex.MatchString(message.Text) {
+            response := cmd.Action(message)
+            log.Println("Responding with:", response)
+            err := b.SendMessage(response)
+            if err != nil {
+                log.Fatal(err)
             }
         }
     }
 }
 
 /**
- * Continuously listen for new incoming messages
+ * Continuously listen for new incoming messages from slack
  */
-func (b *Bot) Listen(c chan Message) {
+func (b *Bot) SlackListener(c chan Message) {
     for {
-        log.Println("Listen---")
-        c<-Message{Text: "123"}
-        log.Println("Listen-------")
-        // message, err := b.ReceiveMessage()
-        m := make(chan Message)
+        message, err := b.ReceiveMessage()
         if err != nil {
             log.Fatal(err)
         } else {
@@ -107,6 +113,24 @@ func (b *Bot) Listen(c chan Message) {
         }
     }
 }
+
+func (b *Bot) SetState(state int) {
+    // if state is valid
+    b.state = state
+}
+
+/**
+ *
+ */
+func (b *Bot) StateListener(c chan int) {
+    for { 
+        time.Sleep(2 * time.Second)
+        log.Println("Listening for state change")
+    }
+    c<-1
+}
+
+
 /**
  * Receive message from the websocket.
  */

@@ -18,6 +18,7 @@ import (
     "encoding/json"
     "fmt"
     "io/ioutil"
+    "log"
     "net/http"
 
     "golang.org/x/net/websocket"
