@@ -25,10 +25,16 @@ import (
 
 var counter uint64
 
+const (
+    ACTIVE = iota
+    PAUSED
+)
+
 type Bot struct {
     Token string
     BotId string
     Commands []*Command
+    state int
     socket *websocket.Conn
 }
 
@@ -63,6 +69,7 @@ func (b *Bot) Run() {
     // Main loop
     for {
         message := <-c
+        log.Println("sup")
         for _, cmd := range b.Commands {
             // This command explicitly expects mention, but the actual message didn't contain any
             if cmd.Mention && !strings.Contains(message.Text, "<@"+b.BotId+">") {
@@ -87,7 +94,11 @@ func (b *Bot) Run() {
  */
 func (b *Bot) Listen(c chan Message) {
     for {
-        message, err := b.ReceiveMessage()
+        log.Println("Listen---")
+        c<-Message{Text: "123"}
+        log.Println("Listen-------")
+        // message, err := b.ReceiveMessage()
+        m := make(chan Message)
         if err != nil {
             log.Fatal(err)
         } else {
@@ -96,7 +107,6 @@ func (b *Bot) Listen(c chan Message) {
         }
     }
 }
-
 /**
  * Receive message from the websocket.
  */
